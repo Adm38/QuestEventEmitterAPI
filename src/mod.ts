@@ -1,4 +1,4 @@
-import { DependencyContainer } from "tsyringe";
+import { DependencyContainer, Lifecycle } from "tsyringe";
 
 import { IPreSptLoadMod } from "@spt/models/external/IPreSptLoadMod";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
@@ -12,31 +12,51 @@ import { IItemEventRouterResponse } from "@spt/models/eft/itemEvent/IItemEventRo
 import { IAcceptQuestRequestData } from "@spt/models/eft/quests/IAcceptQuestRequestData";
 import { IPmcData } from "@spt/models/eft/common/IPmcData";
 import { ICompleteQuestRequestData } from "@spt/models/eft/quests/ICompleteQuestRequestData";
+import { PackageJson, Config, PACKAGE_JSON_PATH, CONFIG_PATH } from "./config"
+import { readJsonFile } from "./utils";
 
 
-class Mod implements IPreSptLoadMod, IPostSptLoadMod {
-    // Code added here will load BEFORE the server has started loading
-    private static modName: string = "ScrimpyDimpy-QuestsDebugging";
+export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
+    // Set out mod name so only this class can modify
+    private static _modName: string = "ScrimpyDimpy-QuestNotifierMod";
+    public static get modName(): string {
+        return QuestNotifierMod._modName;
+    }
 
+    // set our config so only this class can modify it
+    private _modConfig: Config;
+    public get modConfig(): Config {
+        return this._modConfig;
+    }
+
+    private static packageJSON: PackageJson;
     private static container: DependencyContainer;
 
     public preSptLoad(container: DependencyContainer): void {
-        // store the container in case we need it later on
-        Mod.container = container;
+        QuestNotifierMod.packageJSON = readJsonFile<PackageJson>(PACKAGE_JSON_PATH);
 
-        // patch QuestController.acceptQuest to print to the console when a user accepts a new quest
+        // assign our config so classes can retrieve it later
+        this._modConfig = readJsonFile<Config>(CONFIG_PATH);
+
+        // make sure this mod is enabled before we make any other changes
+        if (!this._modConfig.enabled) return;
+
+        // Register our mod as a singleton in the container. When other classes retrieve this from the container, they will retrieve *this* instance.
+        container.register<QuestNotifierMod>(QuestNotifierMod._modName, QuestNotifierMod, { lifecycle: Lifecycle.Singleton })
+
+        // store the container in case we need it later on
+        QuestNotifierMod.container = container;
+
+        // do our patching on all of the QuestHelper methods
         this.patchQuestControllerMethods(container);
     }
 
     public postSptLoad(container: DependencyContainer): void {
+        // if the mod is not enabled, exit without doing anything
+        if (!this._modConfig.enabled) return;
+
         const databaseServer = container.resolve<DatabaseServer>("DatabaseServer");
         const questHelper = container.resolve<QuestHelper>("QuestHelper");
-
-        const SHOOTING_CANS_ID = "657315df034d76585f032e01"
-
-        // get the shooting can quest
-        const shootingCansQuest: IQuest = databaseServer.getTables().templates.quests[SHOOTING_CANS_ID]
-
     }
 
     private patchQuestControllerMethods(container: DependencyContainer) {
@@ -54,9 +74,9 @@ class Mod implements IPreSptLoadMod, IPostSptLoadMod {
 
         // wrapping this originalAcceptQuest method with our own code to log to console when this method is called
         questController.acceptQuest = (pmcData: IPmcData, acceptedQuest: IAcceptQuestRequestData, sessionID: string): IItemEventRouterResponse => {
-            const logger = Mod.container.resolve<ILogger>("WinstonLogger");
+            const logger = QuestNotifierMod.container.resolve<ILogger>("WinstonLogger");
 
-            logger.info(`[${Mod.modName}] Notice: acceptQuest invoked. This is before calling the original acceptQuest method.`)
+            logger.info(`[${QuestNotifierMod._modName}] Notice: acceptQuest invoked. This is before calling the original acceptQuest method.`)
             // TODO: add event handler here
 
             // original acceptQuest logic
@@ -64,7 +84,7 @@ class Mod implements IPreSptLoadMod, IPostSptLoadMod {
             logger.info(originalResult);
 
 
-            logger.info(`[${Mod.modName}] Notice: acceptQuest exited. This is AFTER calling the original acceptQuest method.`);
+            logger.info(`[${QuestNotifierMod._modName}] Notice: acceptQuest exited. This is AFTER calling the original acceptQuest method.`);
 
             // TODO: add event handler here
             return originalResult;
@@ -79,12 +99,12 @@ class Mod implements IPreSptLoadMod, IPostSptLoadMod {
         questController.completeQuest = (pmcData: IPmcData, body: ICompleteQuestRequestData, sessionID: string): IItemEventRouterResponse => {
             const logger = container.resolve<ILogger>("WinstonLogger");
 
-            logger.info(`[${Mod.modName}] completeQuest about to be called.`);
+            logger.info(`[${QuestNotifierMod._modName}] completeQuest about to be called.`);
 
             const result = originalCompleteRequest(pmcData, body, sessionID);
             logger.info(result);
 
-            logger.info(`[${Mod.modName}] completeQuest has been called. Exiting.`);
+            logger.info(`[${QuestNotifierMod._modName}] completeQuest has been called. Exiting.`);
 
             return result;
         }
@@ -93,4 +113,4 @@ class Mod implements IPreSptLoadMod, IPostSptLoadMod {
 
 }
 
-export const mod = new Mod();
+export const mod = new QuestNotifierMod();

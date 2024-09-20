@@ -1,3 +1,4 @@
+/*
 import { DependencyContainer, singleton } from "tsyringe";
 import { IBaseQuestEventCallback } from "./IQuestEventListener";
 import { ListenerType } from "./ListenerTypeEnum";
@@ -6,14 +7,18 @@ import { QuestNotifierMod } from "./mod";
 import { Dictionary, Lifecycle } from "tsyringe/dist/typings/types";
 import { ICancelableEventArgs } from "./QuestEventArgs";
 
+@singleton()
 export class QuestListenerRegistry {
 
-    private listeners: Record<string, IBaseQuestEventCallback[]> = {}; // Dictionary of event listeners
+    //private listeners: Record<string, IBaseQuestEventCallback[]> = {}; // Dictionary of event listeners
+    private listeners: any
 
     constructor(
         private container: DependencyContainer,
         private questEventListeners: Dictionary<Array<IBaseQuestEventCallback>> = {}
     ) {
+        const logger = container.resolve<ILogger>("WinstonLogger")
+        logger.warning("Careful - QuestListenerRegistry's listeners property is not coded well")
         // register QuestListenerRegistry so other classes can easily add their quest events
         container.register<QuestListenerRegistry>("QuestListenerRegistry", QuestListenerRegistry, { lifecycle: Lifecycle.Singleton })
     }
@@ -62,3 +67,5 @@ export class QuestListenerRegistry {
         }
     }
 }
+
+*/

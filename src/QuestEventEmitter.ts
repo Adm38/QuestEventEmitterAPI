@@ -32,11 +32,10 @@ export class QuestEventEmitter {
     }
 
 
-    emitAfter(propKey: string, originalMethodResult: any): void {
-        this.logger.info(`emitAfter called for method ${propKey.toString()}. Note: Not yet implemented`);
+    emitAfter(propKey: keyof QuestController, originalMethodResult: any): void {
+        this.logger.info(`emitAfter called for method ${propKey.toString()}.`);
 
-        // call all interested event listeners
-        return
+        this.postEmitRegistry.notifyPostEventListeners(propKey, originalMethodResult)
     }
 
 

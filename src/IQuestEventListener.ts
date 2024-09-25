@@ -1,5 +1,4 @@
 import { ICancelableEventArgs } from "./ICancelableEventArgs";
-import { QuestController } from "@spt/controllers/QuestController";
 
 /**
  * Interface for a generic pre-event listener that can be bound to methods of the QuestController.

@@ -1,4 +1,4 @@
-import { DependencyContainer, singleton } from "tsyringe";
+import { DependencyContainer, inject, singleton } from "tsyringe";
 import { IPreQuestEventListener, IPostQuestEventListener } from "./IQuestEventListener";
 import { ListenerType } from "./ListenerTypeEnum";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
@@ -8,44 +8,39 @@ import { ICancelableEventArgs } from "./ICancelableEventArgs";
 import { QuestController } from "@spt/controllers/QuestController";
 import { IPostQuestListenerBinding, IPreQuestListenerBinding } from "./IQuestListenerBinding";
 import { IPostSptLoadMod } from "@spt/models/external/IPostSptLoadMod";
-import { QuestEventEmitter } from "./QuestEventEmitter";
+import { IQuestEventEmitter, QuestEventEmitter } from "./QuestEventEmitter";
 
-export interface IOnEmitterPreMethodCallback {
-    triggerPreEvent(questMethod: keyof QuestController, eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs
+export interface IPreQuestListenerRegistry {
+    registerPreListener(questListenerBind: IPreQuestListenerBinding): void
+    removePreListener(questListenerBind: IPreQuestListenerBinding): void
+    notifyPreEventListeners(questMethod: keyof QuestController, _eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs
+}
+
+export interface IPostQuestListenerRegistry {
+    registerPostListener(questListenerBind: IPostQuestListenerBinding): void
+
+    removePostListener(questListenerBind: IPostQuestListenerBinding): void
+    notifyPostEventListeners(questMethod: keyof QuestController, result: any, ...args: any[]): void
 }
 
 @singleton()
-export class QuestListenerRegistry implements IOnEmitterPreMethodCallback, IPostSptLoadMod {
+export class QuestListenerRegistry implements IPreQuestListenerRegistry, IPostQuestListenerRegistry {
 
     static container: DependencyContainer;
 
     private preQuestEventListeners: IPreQuestListenerBinding[] = []
     private postQuestEventListeners: IPostQuestListenerBinding[] = []
 
-    static setContainer(container: DependencyContainer): void {
-        QuestListenerRegistry.container = container
-    }
-
     constructor(
+        @inject("WinstonLogger") private logger: ILogger
+
     ) { }
-
-
-    public postSptLoad(container: DependencyContainer): void {
-        const questEmitter = container.resolve<QuestEventEmitter>("QuestEventEmitter")
-
-        //TODO: I don't know how I feel about this implementation.
-        questEmitter.registerPreEmitListener(this)
-    }
-
 
     public registerPreListener(questListenerBind: IPreQuestListenerBinding): void {
         this.preQuestEventListeners.push(questListenerBind);
     }
 
-    public registerPostListener(questListenerBind: IPostQuestListenerBinding): void {
-        this.postQuestEventListeners.push(questListenerBind);
 
-    }
 
     public removePreListener(questListenerBind: IPreQuestListenerBinding): void {
         // remove the provided questListenerBind
@@ -55,16 +50,8 @@ export class QuestListenerRegistry implements IOnEmitterPreMethodCallback, IPost
         })
     }
 
-    public removePostListener(questListenerBind: IPostQuestListenerBinding): void {
-        // remove the provided questListenerBind 
-        this.postQuestEventListeners = this.postQuestEventListeners.filter((postListener: IPostQuestListenerBinding) => {
-            // return true if this element is not the element we want to remove
-            return postListener != questListenerBind
-        })
-    }
-
-    // Trigger the pre-event (can also be dynamic)
-    public triggerPreEvent(questMethod: keyof QuestController, _eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs {
+    public notifyPreEventListeners(questMethod: keyof QuestController, _eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs {
+        this.logger.info("QuestListenerRegistry.notifyPreEventListeners was called")
 
 
         // get listeners that have matching questMethod
@@ -95,8 +82,20 @@ export class QuestListenerRegistry implements IOnEmitterPreMethodCallback, IPost
         }
     }
 
-    // Dynamic post-event trigger based on method name and arguments
-    public triggerPostEvent(questMethod: keyof QuestController, result: any, ...args: any[]): void {
+    public registerPostListener(questListenerBind: IPostQuestListenerBinding): void {
+        this.postQuestEventListeners.push(questListenerBind);
+
+    }
+
+    public removePostListener(questListenerBind: IPostQuestListenerBinding): void {
+        // remove the provided questListenerBind 
+        this.postQuestEventListeners = this.postQuestEventListeners.filter((postListener: IPostQuestListenerBinding) => {
+            // return true if this element is not the element we want to remove
+            return postListener != questListenerBind
+        })
+    }
+
+    public notifyPostEventListeners(questMethod: keyof QuestController, result: any, ...args: any[]): void {
         // get listeners that have matching questMethod
         const listeners = this.postQuestEventListeners.filter((el: IPostQuestListenerBinding) => {
             return el.questMethod === questMethod

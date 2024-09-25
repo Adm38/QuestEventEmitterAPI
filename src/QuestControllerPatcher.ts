@@ -7,42 +7,28 @@ import { IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
 import { IPreSptLoadMod } from "@spt/models/external/IPreSptLoadMod";
 import { LogTextColor } from "@spt/models/spt/logging/LogTextColor";
 import { assert } from "console";
+import { IQCProxyHandlerGenerator } from "./QuestControllerProxyGenerator";
+
+export interface IQuestControllerPatcher {
+    patchQuestController(): QuestController
+    rerouteQuestController(container: DependencyContainer, proxyQuestController: QuestController): boolean
+}
 
 @injectable()
 export class QuestControllerPatcher {
-    private static container: DependencyContainer
-
     constructor(
+        @inject("WinstonLogger") private logger: ILogger,
+        @inject("QuestController") private originalQuestController: QuestController,
+        @inject("QCProxyHandlerGenerator") private proxyHandlerGenerator: IQCProxyHandlerGenerator
+
     ) { }
 
     /**
-     * Sets the global dependency container to be used for dependency injection.
-     * 
-     * @param container - The DependencyContainer instance that will be used to resolve dependencies, 
-     *                    such as the QuestController and other services.
+     * Returns a QuestController so another class can reroute the DI container
      */
-    static setContainer(container: DependencyContainer): void {
-        QuestControllerPatcher.container = container
-    }
-
-    /**
-     * Patches the QuestController by creating a proxy and rerouting the original QuestController calls to it.
-     * Logs the success of the operation.
-     * 
-     * This method creates a proxy of the QuestController and overrides the default QuestController 
-     * in the dependency container with the proxy version. If successful, it logs a message indicating 
-     * that the QuestController has been patched.
-     */
-    public patchQuestController(): void {
+    public patchQuestController(): QuestController {
         // Create proxy
-        const questControllerProxy = this.createQuestControllerProxy()
-
-        // Redirect calls to container.resolve("QuestController") to our new proxy
-        const wasSuccess = this.rerouteQuestController(questControllerProxy)
-
-        if (wasSuccess) {
-            container.resolve<ILogger>("WinstonLogger").logWithColor("Patched QuestController", LogTextColor.YELLOW)
-        }
+        return this.createQuestControllerProxy()
     }
 
     /**
@@ -57,18 +43,21 @@ export class QuestControllerPatcher {
      * @returns {boolean} - Returns `true` if the rerouting was successful (i.e., the proxy successfully replaced 
      *                      the original QuestController), otherwise `false`.
      */
-    protected rerouteQuestController(proxyQuestController: QuestController): boolean {
-        const originalQC = QuestControllerPatcher.container.resolve<QuestController>("QuestController")
-
+    public rerouteQuestController(container: DependencyContainer, proxyQuestController: QuestController): boolean {
         // override following logic described here:
         // https://dev.sp-tarkov.com/chomp/ModExamples/src/branch/master/TypeScript/12ClassExtensionOverride/src/mod.ts
-        QuestControllerPatcher.container.register<QuestController>("QuestController", { useValue: proxyQuestController });
-        //QuestControllerPatcher.container.register("QuestController", { useToken: "EmitterPatchedQuestController" })
+        container.register<QuestController>("QuestController", { useValue: proxyQuestController });
 
-        const wasSuccess = QuestControllerPatcher.container.resolve<QuestController>("QuestController").acceptQuest != originalQC.acceptQuest
-        if (!wasSuccess) {
-            container.resolve<ILogger>("WinstonLogger").error("Did not successfully patch QuestController")
+        // Check if the service locator is routing to our patched 
+        // QuestController Proxy object
+        const newlyRoutedQuestController = container.resolve<QuestController>("QuestController")
+        const wasSuccess = newlyRoutedQuestController.acceptQuest != this.originalQuestController.acceptQuest
+
+        if (wasSuccess) {
+            this.logger.logWithColor("[QuestEventEmitterAPI] Successfully patched QuestController", LogTextColor.YELLOW)
+            return wasSuccess
         }
+        this.logger.error("Did not successfully patch QuestController");
         return wasSuccess
     }
 
@@ -86,65 +75,16 @@ export class QuestControllerPatcher {
      */
     public createQuestControllerProxy(_handler?: IQuestControllerProxyHandler): QuestController {
         // returns a proxy object for the QuestController class.
-        const questController = QuestControllerPatcher.container.resolve<QuestController>("QuestController");
+
 
         // initialize handler with a default proxy handler function
-        let handler: IQuestControllerProxyHandler = this.getEmitterProxyHandler();
+        let handler: IQuestControllerProxyHandler = this.proxyHandlerGenerator.getEmitterProxyHandler();
 
         // use provided handler instead if we received one
-        if (typeof _handler !== "undefined") handler = this.getEmitterProxyHandler();
+        if (typeof _handler !== "undefined") handler = this.proxyHandlerGenerator.getEmitterProxyHandler();
 
         // Return the proxy object that wraps QuestController
-        return new Proxy(questController, handler)
-    }
-
-    /**
-     * Provides a default proxy handler for the QuestController that intercepts method calls to emit events.
-     * 
-     * This handler overrides the `get` method on the proxy object, allowing it to wrap any method calls 
-     * on the QuestController. The handler emits an event before the method is called, checks if the call 
-     * should be canceled, and then emits an event after the method is executed.
-     * 
-     * @returns {IQuestControllerProxyHandler} - A handler object implementing traps for intercepting method calls 
-     *                                           on the QuestController proxy.
-     */
-    protected getEmitterProxyHandler(): IQuestControllerProxyHandler {
-        return {
-            // override the `get` method. This is called when accessing any properties or functions on the proxy obj
-            get: (target: QuestController, propKey: keyof QuestController, receiver: any): any => {
-                const originalMethod = target[propKey];
-
-                // Only wrap if it's a method
-                if (typeof originalMethod === "function") {
-                    return (...args: any[]) => {
-                        // resolve dependencies
-                        const questEventEmitter = QuestControllerPatcher.container.resolve<QuestEventEmitter>("QuestEventEmitter")
-                        const logger = QuestControllerPatcher.container.resolve<ILogger>("WinstonLogger")
-
-                        // Notify the emitter that we're calling the original method soon
-                        const eventArgsBefore: ICancelableEventArgs = questEventEmitter.emitBefore(propKey, args)
-
-                        // Check if any of the listeners requested we cancel the original method call
-                        if (eventArgsBefore.cancel) {
-                            logger.info(`Cancelling original method call for ${propKey}. An event listener indicated we should cancel`);
-                            return
-                        }
-
-                        // Invoke the original QuestController method
-                        const result = originalMethod.apply(target, args)
-
-                        // Emit event after the method call
-                        questEventEmitter.emitAfter(propKey, result)
-
-                        return result
-                    }
-                }
-
-                // If propKey is not a function, return the original property
-                return originalMethod
-            }
-        }
-
+        return new Proxy(this.originalQuestController, handler)
     }
 
 }

@@ -16,33 +16,34 @@ import { IPostQuestListenerRegistry, IPreQuestListenerRegistry, QuestListenerReg
 import { IPreQuestListenerBinding } from "./IQuestListenerBinding";
 import { IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
 import { IQCProxyHandlerGenerator, QCProxyHandlerGenerator } from "./QuestControllerProxyGenerator";
+import { QuestEventEmitterAPILogger } from "./QuestEventEmitterAPILogger";
 
 
 export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
     // Set out mod name so only this class can modify
     private static _modName: string = "ScrimpyDimpy-QuestNotifierMod";
+    private static packageJSON: PackageJson;
+    private static container: DependencyContainer;
+
     public static get modName(): string {
         return QuestNotifierMod._modName;
     }
 
-    // set our config so only this class can modify it
-    private _modConfig: Config;
-    public get modConfig(): Config {
-        return this._modConfig;
-    }
-
-    private static packageJSON: PackageJson;
-    private static container: DependencyContainer;
+    private modConfig: Config;
 
     public preSptLoad(container: DependencyContainer): void {
         QuestNotifierMod.packageJSON = readJsonFile<PackageJson>(PACKAGE_JSON_PATH);
 
-        // assign our config so classes can retrieve it later
-        this._modConfig = readJsonFile<Config>(CONFIG_PATH);
+        // assign our config so we can retrieve it later
+        this.modConfig = readJsonFile<Config>(CONFIG_PATH);
 
         // make sure this mod is enabled before we make any other changes
-        if (!this._modConfig.enabled) return;
+        if (!this.modConfig.enabled) return;
 
+        container.register<Config>("QuestEventEmitterAPIConfig", { useValue: this.modConfig })
+
+
+        container.register<ILogger>("QuestEventEmitterAPILogger", QuestEventEmitterAPILogger, { lifecycle: Lifecycle.Singleton })
         container.register<IQCProxyHandlerGenerator>("QCProxyHandlerGenerator", QCProxyHandlerGenerator);
 
         container.register<QuestControllerPatcher>("QuestControllerPatcher", QuestControllerPatcher, { lifecycle: Lifecycle.Singleton })
@@ -57,24 +58,22 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
 
         const wasSuccess = questControllerPatcher.rerouteQuestController(container, patchedController)
 
-        const logger = container.resolve<ILogger>("WinstonLogger")
-        logger.info(`[QuestEventEmitterAPI] mod ran successfully? ${wasSuccess}`)
+        const logger = container.resolve<ILogger>("QuestEventEmitterAPILogger")
+        logger.info(`ran successfully? ${wasSuccess}`)
 
     }
 
     postSptLoad(container: DependencyContainer): void {
         // if the mod is not enabled, exit without doing anything
-        if (!this._modConfig.enabled) return;
+        if (!this.modConfig.enabled) return;
 
-        const databaseServer = container.resolve<DatabaseServer>("DatabaseServer");
-        const questHelper = container.resolve<QuestHelper>("QuestHelper");
         const preEventRegistry = container.resolve<IPreQuestListenerRegistry>("PreQuestListenerRegistry")
 
         // Create a test event that gets called whenever I accept a task
         const acceptTaskCallback: IPreQuestEventListener = {
             // define the callback function
             on(eventArgs, ...args): ICancelableEventArgs {
-                const logger = container.resolve<ILogger>("WinstonLogger")
+                const logger = container.resolve<ILogger>("QuestEventEmitterAPILogger")
                 logger.info("Wow! I think you just accepted a task. Keep it up champ.")
 
                 // return eventArgs without setting cancel to True

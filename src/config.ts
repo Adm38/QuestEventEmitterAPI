@@ -20,6 +20,7 @@ export type PackageJson = {
 export type Config = {
     enabled?: boolean;
     debug?: boolean;
+    loggerPrefix: string;
 };
 
 export const PACKAGE_JSON_PATH = resolve(__dirname, "..", "package.json");

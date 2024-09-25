@@ -1,12 +1,8 @@
-import { container, DependencyContainer, inject, injectable, Lifecycle, singleton } from "tsyringe";
-import { ICancelableEventArgs } from "./ICancelableEventArgs";
+import { DependencyContainer, inject, injectable } from "tsyringe";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
 import { QuestController } from "@spt/controllers/QuestController";
-import { QuestEventEmitter } from "./QuestEventEmitter";
 import { IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
-import { IPreSptLoadMod } from "@spt/models/external/IPreSptLoadMod";
 import { LogTextColor } from "@spt/models/spt/logging/LogTextColor";
-import { assert } from "console";
 import { IQCProxyHandlerGenerator } from "./QuestControllerProxyGenerator";
 
 export interface IQuestControllerPatcher {
@@ -17,7 +13,7 @@ export interface IQuestControllerPatcher {
 @injectable()
 export class QuestControllerPatcher {
     constructor(
-        @inject("WinstonLogger") private logger: ILogger,
+        @inject("QuestEventEmitterAPILogger") private logger: ILogger,
         @inject("QuestController") private originalQuestController: QuestController,
         @inject("QCProxyHandlerGenerator") private proxyHandlerGenerator: IQCProxyHandlerGenerator
 
@@ -54,7 +50,7 @@ export class QuestControllerPatcher {
         const wasSuccess = newlyRoutedQuestController.acceptQuest != this.originalQuestController.acceptQuest
 
         if (wasSuccess) {
-            this.logger.logWithColor("[QuestEventEmitterAPI] Successfully patched QuestController", LogTextColor.YELLOW)
+            this.logger.logWithColor("Successfully patched QuestController", LogTextColor.YELLOW)
             return wasSuccess
         }
         this.logger.error("Did not successfully patch QuestController");

@@ -1,14 +1,8 @@
 import { DependencyContainer, inject, singleton } from "tsyringe";
-import { IPreQuestEventListener, IPostQuestEventListener } from "./IQuestEventListener";
-import { ListenerType } from "./ListenerTypeEnum";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
-import { QuestNotifierMod } from "./mod";
-import { Dictionary, Lifecycle } from "tsyringe/dist/typings/types";
 import { ICancelableEventArgs } from "./ICancelableEventArgs";
 import { QuestController } from "@spt/controllers/QuestController";
 import { IPostQuestListenerBinding, IPreQuestListenerBinding } from "./IQuestListenerBinding";
-import { IPostSptLoadMod } from "@spt/models/external/IPostSptLoadMod";
-import { IQuestEventEmitter, QuestEventEmitter } from "./QuestEventEmitter";
 
 export interface IPreQuestListenerRegistry {
     registerPreListener(questListenerBind: IPreQuestListenerBinding): void
@@ -32,7 +26,7 @@ export class QuestListenerRegistry implements IPreQuestListenerRegistry, IPostQu
     private postQuestEventListeners: IPostQuestListenerBinding[] = []
 
     constructor(
-        @inject("WinstonLogger") private logger: ILogger
+        @inject("QuestEventEmitterAPILogger") private logger: ILogger
 
     ) { }
 

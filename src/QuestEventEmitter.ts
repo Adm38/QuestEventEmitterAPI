@@ -16,7 +16,7 @@ export class QuestEventEmitter {
     constructor(
         @inject("PreQuestListenerRegistry") private preEmitRegistry: IPreQuestListenerRegistry,
         @inject("PostQuestListenerRegistry") private postEmitRegistry: IPostQuestListenerRegistry,
-        @inject("WinstonLogger") private logger: ILogger
+        @inject("QuestEventEmitterAPILogger") private logger: ILogger
 
     ) { }
 

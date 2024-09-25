@@ -1,8 +1,7 @@
 import { inject, singleton } from "tsyringe";
 import { IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
 import { QuestController } from "@spt/controllers/QuestController";
-import { IQuestEventEmitter, QuestEventEmitter } from "./QuestEventEmitter";
-import { QuestControllerPatcher } from "./QuestControllerPatcher";
+import { IQuestEventEmitter } from "./QuestEventEmitter";
 import { ICancelableEventArgs } from "./ICancelableEventArgs";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
 
@@ -14,7 +13,7 @@ export interface IQCProxyHandlerGenerator {
 @singleton()
 export class QCProxyHandlerGenerator implements IQCProxyHandlerGenerator {
     constructor(
-        @inject("WinstonLogger") private logger: ILogger,
+        @inject("QuestEventEmitterAPILogger") private logger: ILogger,
         @inject("QuestEventEmitter") private questEventEmitter: IQuestEventEmitter
 
     ) { }

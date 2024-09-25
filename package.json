@@ -24,6 +24,10 @@
         "typescript": "5.4",
         "winston": "3.12"
     },
+    "compilerOptions": {
+        "sourceMap": true,
+        "outDir": "src/ts-out/"
+    },
     "author": "ScrimpyDimpy",
     "contributors": [],
     "license": "MIT"

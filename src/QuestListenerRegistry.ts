@@ -1,71 +1,112 @@
-/*
 import { DependencyContainer, singleton } from "tsyringe";
-import { IBaseQuestEventCallback } from "./IQuestEventListener";
+import { IPreQuestEventListener, IPostQuestEventListener } from "./IQuestEventListener";
 import { ListenerType } from "./ListenerTypeEnum";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
 import { QuestNotifierMod } from "./mod";
 import { Dictionary, Lifecycle } from "tsyringe/dist/typings/types";
-import { ICancelableEventArgs } from "./QuestEventArgs";
+import { ICancelableEventArgs } from "./ICancelableEventArgs";
+import { QuestController } from "@spt/controllers/QuestController";
+import { IPostQuestListenerBinding, IPreQuestListenerBinding } from "./IQuestListenerBinding";
+import { IPostSptLoadMod } from "@spt/models/external/IPostSptLoadMod";
+import { QuestEventEmitter } from "./QuestEventEmitter";
+
+export interface IOnEmitterPreMethodCallback {
+    triggerPreEvent(questMethod: keyof QuestController, eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs
+}
 
 @singleton()
-export class QuestListenerRegistry {
+export class QuestListenerRegistry implements IOnEmitterPreMethodCallback, IPostSptLoadMod {
 
-    //private listeners: Record<string, IBaseQuestEventCallback[]> = {}; // Dictionary of event listeners
-    private listeners: any
+    static container: DependencyContainer;
+
+    private preQuestEventListeners: IPreQuestListenerBinding[] = []
+    private postQuestEventListeners: IPostQuestListenerBinding[] = []
+
+    static setContainer(container: DependencyContainer): void {
+        QuestListenerRegistry.container = container
+    }
 
     constructor(
-        private container: DependencyContainer,
-        private questEventListeners: Dictionary<Array<IBaseQuestEventCallback>> = {}
-    ) {
-        const logger = container.resolve<ILogger>("WinstonLogger")
-        logger.warning("Careful - QuestListenerRegistry's listeners property is not coded well")
-        // register QuestListenerRegistry so other classes can easily add their quest events
-        container.register<QuestListenerRegistry>("QuestListenerRegistry", QuestListenerRegistry, { lifecycle: Lifecycle.Singleton })
+    ) { }
+
+
+    public postSptLoad(container: DependencyContainer): void {
+        const questEmitter = container.resolve<QuestEventEmitter>("QuestEventEmitter")
+
+        //TODO: I don't know how I feel about this implementation.
+        questEmitter.registerPreEmitListener(this)
     }
 
-    // Register a new listener for a specific event type
-    public addListener(listenerType: ListenerType, listener: IBaseQuestEventCallback): void {
-        if (!this.listeners[listenerType]) {
-            this.listeners[listenerType] = [];
-        }
-        this.listeners[listenerType].push(listener);
+
+    public registerPreListener(questListenerBind: IPreQuestListenerBinding): void {
+        this.preQuestEventListeners.push(questListenerBind);
     }
 
-    public removeListener(listenerType: ListenerType, listenerCallback: IBaseQuestEventCallback): void {
-        // resolve any dependencies
-        const logger = this.container.resolve<ILogger>("WinstonLogger");
-        const questNotifierMod = this.container.resolve<QuestNotifierMod>(QuestNotifierMod.modName)
+    public registerPostListener(questListenerBind: IPostQuestListenerBinding): void {
+        this.postQuestEventListeners.push(questListenerBind);
 
-        // create a new array with all functions minus `listenerCallback`.
-        const newListeners: Array<IBaseQuestEventCallback> = this.questEventListeners[listenerType].filter((listenerFunc) => {
-            return !(listenerFunc === listenerCallback);
-        });
+    }
 
-        // If we are in debug mode, print the difference between current this.questEventListeners and newListeners
-        if (questNotifierMod.modConfig.debug) {
-            logger.debug(`Old Listener Count: ${this.questEventListeners[listenerType].length} | New Listener Count: ${newListeners.length}`);
-        }
+    public removePreListener(questListenerBind: IPreQuestListenerBinding): void {
+        // remove the provided questListenerBind
+        this.preQuestEventListeners = this.preQuestEventListeners.filter((preListener: IPreQuestListenerBinding) => {
+            // return true if this element is not the element we want to remove
+            return preListener != questListenerBind
+        })
+    }
+
+    public removePostListener(questListenerBind: IPostQuestListenerBinding): void {
+        // remove the provided questListenerBind 
+        this.postQuestEventListeners = this.postQuestEventListeners.filter((postListener: IPostQuestListenerBinding) => {
+            // return true if this element is not the element we want to remove
+            return postListener != questListenerBind
+        })
     }
 
     // Trigger the pre-event (can also be dynamic)
-    public triggerPreEvent(listenerType: ListenerType, eventArgs: ICancelableEventArgs, ...args: any[]): void {
-        const listeners = this.listeners[listenerType];
+    public triggerPreEvent(questMethod: keyof QuestController, _eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs {
+
+
+        // get listeners that have matching questMethod
+        const listeners = this.preQuestEventListeners.filter((el: IPreQuestListenerBinding) => {
+            return el.questMethod === questMethod
+        })
+
+        // initialize at this scope to ensure if one event wants to cancel, another one behind it doesn't wipe that out.
+        let shouldCancel = _eventArgs.cancel
+        const myEventArgs: ICancelableEventArgs = {
+            cancel: shouldCancel
+        }
+
+        // if we have eventListeners to notify, iterate through and pass along the arguments provided
         if (listeners) {
-            listeners.forEach((listener) => {
-                listener.onPreEvent?.(eventArgs, ...args);  // Call pre-event listener if exists
+            listeners.forEach((listener: IPreQuestListenerBinding) => {
+                const postListenerCallEventArgs = listener.eventListenerCallback.on(myEventArgs, ...args);
+
+                // if listener function returned should_cancel = true or it was 
+                // already set to true by a previous function, ensure that 
+                // value persists
+                shouldCancel = shouldCancel || postListenerCallEventArgs.cancel
             });
+        }
+
+        return {
+            cancel: shouldCancel
         }
     }
 
     // Dynamic post-event trigger based on method name and arguments
-    public triggerPostEvent(listenerType: ListenerType, result: any, ...args: any[]): void {
-        const listeners = this.listeners[listenerType];
+    public triggerPostEvent(questMethod: keyof QuestController, result: any, ...args: any[]): void {
+        // get listeners that have matching questMethod
+        const listeners = this.postQuestEventListeners.filter((el: IPostQuestListenerBinding) => {
+            return el.questMethod === questMethod
+        })
+
+        // if we have eventListeners to notify, iterate through and pass along the arguments provided
         if (listeners) {
-            listeners.forEach((listener) => {
-                listener.onPostEvent?.(result, ...args);  // Call post-event listener if exists
+            listeners.forEach((listener: IPostQuestListenerBinding) => {
+                listener.eventListenerCallback.on(result);
             });
         }
     }
 }
-
-*/

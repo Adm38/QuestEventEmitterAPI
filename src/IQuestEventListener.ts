@@ -1,31 +1,41 @@
-import { IItemEventRouterResponse } from "@spt/models/eft/itemEvent/IItemEventRouterResponse";
-import { ICancelableEventArgs, IQuestCompleteEventArgs, IQuestAcceptEventArgs } from "./QuestEventArgs";
-import { IAcceptQuestRequestData } from "@spt/models/eft/quests/IAcceptQuestRequestData";
-import { IPmcData } from "@spt/models/eft/common/IPmcData";
-import { Item } from "@spt/models/eft/common/tables/IItem";
+import { ICancelableEventArgs } from "./ICancelableEventArgs";
+import { QuestController } from "@spt/controllers/QuestController";
 
 /**
- * Base interface for all quest event callbacks.
- * Provides a generic type for onPreEvent and onPostEvent to support flexibility.
+ * Interface for a generic pre-event listener that can be bound to methods of the QuestController.
+ * 
+ * Classes implementing this interface will intercept method calls on the QuestController before 
+ * the actual method execution. The `on` method will be triggered with the method name (propKey) 
+ * and its arguments, and it should return an object of type `ICancelableEventArgs`. 
+ * This allows listeners to modify the behavior of the original method, potentially canceling the call.
+ * 
+ * @interface IPreQuestEventListener
  */
-export interface IBaseQuestEventCallback<TEventArgs, TResult = any> {
-    onPreEvent?(eventArgs: TEventArgs, ...args: any[]): void;
-    onPostEvent?(result: TResult, ...args: any[]): void;
+export interface IPreQuestEventListener {
+    /**
+     * Handles an event before the execution of a QuestController method.
+     * 
+     * @param propKey - The name of the method on QuestController that is being intercepted.
+     * @param args - The arguments that were passed to the QuestController method.
+     * @returns {ICancelableEventArgs} - An event arguments object that can signal whether the method call should be canceled or proceed as normal.
+     */
+    on(eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs
+}
+
+/**
+ * Interface for a generic post-event listener that can be bound to methods of the QuestController.
+ * Classes implementing this interface will be notified after a method on the QuestController has been executed. 
+ * The `on` method will be triggered with the method name (propKey) and the result of the method execution. 
+ * Post-event listeners can use this information for logging, modifying the result, or triggering additional actions.
+ * @interface IPostQuestEventListener
+ */
+export interface IPostQuestEventListener {
+    /**
+     * Handles an event after the execution of a QuestController method.
+     * @param propKey - The name of the method on QuestController that was called.
+     * @param originalMethodResult - The result of the method call, which can be used or modified by the listener.
+     */
+    on(originalMethodResult: any): void
 }
 
 
-/**
- * Event listener interface for quest acceptance events.
- * Extends the base quest event callback interface with specific quest acceptance parameters.
- */
-export interface IQuestAcceptCallback extends IBaseQuestEventCallback<IQuestAcceptEventArgs> {
-    // onPreEvent and onPostEvent are inherited with specific types from IBaseQuestEventCallback
-}
-
-/**
- * Event listener interface for quest completion events.
- * Extends the base quest event callback interface with specific quest completion parameters.
- */
-export interface IQuestCompleteCallback extends IBaseQuestEventCallback<IQuestCompleteEventArgs> {
-    // onPreEvent and onPostEvent are inherited with specific types from IBaseQuestEventCallback
-}

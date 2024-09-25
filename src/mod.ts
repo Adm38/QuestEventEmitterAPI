@@ -9,6 +9,11 @@ import { readJsonFile } from "./utils";
 import { QuestControllerPatcher } from "./QuestControllerPatcher";
 import { QuestEventEmitter } from "./QuestEventEmitter";
 import { IPostDBLoadMod } from "@spt/models/external/IPostDBLoadMod";
+import { IPreQuestEventListener } from "./IQuestEventListener";
+import { ICancelableEventArgs } from "./ICancelableEventArgs";
+import { ILogger } from "@spt/models/spt/utils/ILogger";
+import { QuestListenerRegistry } from "./QuestListenerRegistry";
+import { IPreQuestListenerBinding } from "./IQuestListenerBinding";
 
 
 export class QuestNotifierMod implements IPreSptLoadMod, IPostDBLoadMod, IPostSptLoadMod {
@@ -39,10 +44,12 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostDBLoadMod, IPostSp
         // Register classes we'll be accessing via container
         QuestControllerPatcher.setContainer(container)
         QuestEventEmitter.setContainer(container)
+        QuestListenerRegistry.setContainer(container)
+
 
         container.register<QuestControllerPatcher>("QuestControllerPatcher", QuestControllerPatcher, { lifecycle: Lifecycle.Singleton })
         container.register<QuestEventEmitter>("QuestEventEmitter", QuestEventEmitter, { lifecycle: Lifecycle.Singleton })
-
+        container.register<QuestListenerRegistry>("QuestListenerRegistry", QuestListenerRegistry, { lifecycle: Lifecycle.Singleton })
         // Register our mod as a singleton in the container. When other classes retrieve this from the container, they will retrieve *this* instance.
 
         container.register<QuestNotifierMod>(QuestNotifierMod._modName, QuestNotifierMod, { lifecycle: Lifecycle.Singleton })
@@ -50,6 +57,10 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostDBLoadMod, IPostSp
         // run our patching
         const questControllerPatcher = container.resolve(QuestControllerPatcher)
         questControllerPatcher.patchQuestController()
+
+        // TODO: this feels like bad practice
+        const questListenerRegistry = container.resolve<QuestListenerRegistry>("QuestListenerRegistry")
+        questListenerRegistry.postSptLoad(container)
     }
 
     postDBLoad(container: DependencyContainer): void {
@@ -65,6 +76,24 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostDBLoadMod, IPostSp
 
         const databaseServer = container.resolve<DatabaseServer>("DatabaseServer");
         const questHelper = container.resolve<QuestHelper>("QuestHelper");
+        const questEventRegistry = container.resolve<QuestListenerRegistry>("QuestListenerRegistry")
+
+        // Create a test event that gets called whenever I accept a task
+        const acceptTaskCallback: IPreQuestEventListener = {
+            // define the callback function
+            on(eventArgs, ...args): ICancelableEventArgs {
+                const logger = container.resolve<ILogger>("WinstonLogger")
+                logger.info("Wow! I think you just accepted a task. Keep it up champ.")
+
+                // return eventArgs without setting cancel to True
+                return eventArgs
+            },
+        }
+        const binding: IPreQuestListenerBinding = {
+            questMethod: "acceptQuest",
+            eventListenerCallback: acceptTaskCallback
+        }
+        questEventRegistry.registerPreListener(binding)
     }
 
 }

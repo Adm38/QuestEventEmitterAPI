@@ -1,9 +1,10 @@
 import { DependencyContainer, inject, injectable } from "tsyringe";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
 import { QuestController } from "@spt/controllers/QuestController";
-import { IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
+import { depr_IQuestControllerProxyHandler, IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
 import { LogTextColor } from "@spt/models/spt/logging/LogTextColor";
 import { IQCProxyHandlerGenerator } from "./QuestControllerProxyGenerator";
+import { json } from "stream/consumers";
 
 export interface IQuestControllerPatcher {
     patchQuestController(): QuestController
@@ -23,12 +24,14 @@ export class QuestControllerPatcher {
      * Returns a QuestController so another class can reroute the DI container
      */
     public patchQuestController(): QuestController {
-        // Create proxy
-        return this.createQuestControllerProxy()
+        // patch each individual method on the Quest Controller
+        this.patchEachQCMethod()
+        return this.originalQuestController
     }
 
     /**
      * Reroutes the QuestController in the container to a provided proxy instance.
+     * 
      * 
      * This method replaces the original QuestController in the dependency container with the proxy version, 
      * ensuring that any subsequent requests for the QuestController use the proxy instead. It verifies 
@@ -69,18 +72,51 @@ export class QuestControllerPatcher {
      * @returns {QuestController} - A proxy object that wraps the QuestController instance, enabling interception 
      *                              of method calls.
      */
-    public createQuestControllerProxy(_handler?: IQuestControllerProxyHandler): QuestController {
+    public createQuestControllerProxy(): QuestController {
         // returns a proxy object for the QuestController class.
+        // start with an empty handler because we want to apply proxies at the function level. 
+        // However, we don't want to modify the original QuestController when we start overwriting functions
 
+        this.logger.warning("createQuestControllerProxy is being depreciated. This should not be called.")
+
+        return new Proxy(this.originalQuestController, {})
+    }
+
+    patchEachQCMethod(_handler?: IQuestControllerProxyHandler): void {
+        // which functions do we not want to patch?
+        const methodNameBlacklist = ["constructor"]
 
         // initialize handler with a default proxy handler function
+        // this handler will be applied to each function on the proxy QuestController
         let handler: IQuestControllerProxyHandler = this.proxyHandlerGenerator.getEmitterProxyHandler();
 
         // use provided handler instead if we received one
         if (typeof _handler !== "undefined") handler = this.proxyHandlerGenerator.getEmitterProxyHandler();
 
-        // Return the proxy object that wraps QuestController
-        return new Proxy(this.originalQuestController, handler)
+        // get each property on QuestController, then narrow to just methods
+        const qcProperties = Object.getOwnPropertyNames(Object.getPrototypeOf(this.originalQuestController))
+        const qcMethods = qcProperties.filter((prop) => {
+            return !(prop in methodNameBlacklist)
+        });
+
+        // apply our handler wrapper to each method on QuestController
+        const methodWhitelist = ["acceptQuest", "completeQuest", "failQuest", "failQuests"]
+        qcMethods.forEach((qcMethod) => {
+            if (!(methodWhitelist.includes(qcMethod))) {
+                //TODO: Remove this - only for debugging purposes
+
+                this.logger.warning(`Patcher: Skipped patching ${qcMethod}`);
+                return
+            }
+
+            const originalMethod = Reflect.get(this.originalQuestController, qcMethod)
+            const patchedMethod = new Proxy(originalMethod, handler)
+            Reflect.set(this.originalQuestController, qcMethod, patchedMethod)
+
+            this.logger.info(`Patcher: patched ${qcMethod}`)
+        });
+
+        return
     }
 
 }

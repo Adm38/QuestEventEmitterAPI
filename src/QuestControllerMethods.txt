@@ -1,0 +1,28 @@
+# All Methods
+["getClientQuests", 
+"playerLevelFulfillsQuestRequirement",
+"acceptQuest",
+"acceptRepeatableQuest",
+"createAcceptedQuestClientResponse",
+"getRepeatableQuestFromProfile",
+"completeQuest",
+"getQuestsFailedByCompletingQuest",
+"removeQuestFromScavProfile",
+"getQuestsWithDifferentStatuses",
+"sendSuccessDialogMessageOnQuestComplete",
+"addTimeLockedQuestsToProfile",
+"failQuests",
+"handoverQuest",
+"showRepeatableQuestInvalidConditionError",
+"showQuestItemHandoverMatchError",
+"updateProfileTaskConditionCounterValue",
+"failQuest"]
+
+# Working Patches
+acceptQuest
+completeQuest
+
+
+# Not Working Patches
+getClientQuests
+failQuest // Fail quest doesn't seem to work well - at least on Supply Plans. Instead, failQuests seems to be called instead. I wonder if there is a way to modify my code to not use keyof QuestController and instead I could get the properties the same way I'm getting all methods

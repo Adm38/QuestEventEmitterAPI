@@ -7,8 +7,8 @@ import { IPostQuestListenerRegistry, IPreQuestListenerRegistry } from "./QuestLi
 
 
 export interface IQuestEventEmitter {
-    emitBefore(propKey: keyof QuestController, args: any[]): ICancelableEventArgs
-    emitAfter(propKey: string, originalMethodResult: any): void
+    emitBefore(propKey: keyof QuestController, ...args: any[]): ICancelableEventArgs
+    emitAfter(propKey: keyof QuestController, originalMethodResult: any): void
 }
 
 @injectable()
@@ -20,13 +20,13 @@ export class QuestEventEmitter {
 
     ) { }
 
-    emitBefore(propKey: keyof QuestController, args: any[]): ICancelableEventArgs {
+    emitBefore(propKey: keyof QuestController, ...args: any[]): ICancelableEventArgs {
         this.logger.info(`emitBefore called for method ${propKey.toString()}. Attempting to alert the event listeners`);
 
         const cancelableEventArgs: ICancelableEventArgs = {
             cancel: false
         }
-        const shouldCancelResult = this.preEmitRegistry.notifyPreEventListeners(propKey, cancelableEventArgs, args)
+        const shouldCancelResult = this.preEmitRegistry.notifyPreEventListeners(propKey, cancelableEventArgs, ...args)
 
         return shouldCancelResult;
     }

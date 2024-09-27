@@ -3,18 +3,19 @@ import { ILogger } from "@spt/models/spt/utils/ILogger";
 import { ICancelableEventArgs } from "./ICancelableEventArgs";
 import { QuestController } from "@spt/controllers/QuestController";
 import { IPostQuestListenerBinding, IPreQuestListenerBinding } from "./IQuestListenerBinding";
+import { PatchableMethods } from "./PatchableMethodsEnum";
 
 export interface IPreQuestListenerRegistry {
     registerPreListener(questListenerBind: IPreQuestListenerBinding): void
     removePreListener(questListenerBind: IPreQuestListenerBinding): void
-    notifyPreEventListeners(questMethod: keyof QuestController, _eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs
+    notifyPreEventListeners(questMethod: PatchableMethods, _eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs
 }
 
 export interface IPostQuestListenerRegistry {
     registerPostListener(questListenerBind: IPostQuestListenerBinding): void
 
     removePostListener(questListenerBind: IPostQuestListenerBinding): void
-    notifyPostEventListeners(questMethod: keyof QuestController, result: any, ...args: any[]): void
+    notifyPostEventListeners(questMethod: PatchableMethods, result: any, ...args: any[]): void
 }
 
 @singleton()
@@ -44,7 +45,7 @@ export class QuestListenerRegistry implements IPreQuestListenerRegistry, IPostQu
         })
     }
 
-    public notifyPreEventListeners(questMethod: keyof QuestController, _eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs {
+    public notifyPreEventListeners(questMethod: PatchableMethods, _eventArgs: ICancelableEventArgs, ...args: any[]): ICancelableEventArgs {
         this.logger.info("QuestListenerRegistry.notifyPreEventListeners was called")
 
 
@@ -89,7 +90,7 @@ export class QuestListenerRegistry implements IPreQuestListenerRegistry, IPostQu
         })
     }
 
-    public notifyPostEventListeners(questMethod: keyof QuestController, result: any, ...args: any[]): void {
+    public notifyPostEventListeners(questMethod: PatchableMethods, result: any, ...args: any[]): void {
         // get listeners that have matching questMethod
         const listeners = this.postQuestEventListeners.filter((el: IPostQuestListenerBinding) => {
             return el.questMethod === questMethod

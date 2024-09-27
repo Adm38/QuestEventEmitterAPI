@@ -4,11 +4,12 @@ import { ILogger } from "@spt/models/spt/utils/ILogger";
 import { ICancelableEventArgs } from "./ICancelableEventArgs";
 import { IPreSptLoadMod } from "@spt/models/external/IPreSptLoadMod";
 import { IPostQuestListenerRegistry, IPreQuestListenerRegistry } from "./QuestListenerRegistry";
+import { PatchableMethods } from "./PatchableMethodsEnum";
 
 
 export interface IQuestEventEmitter {
-    emitBefore(propKey: keyof QuestController, ...args: any[]): ICancelableEventArgs
-    emitAfter(propKey: keyof QuestController, originalMethodResult: any): void
+    emitBefore(propKey: PatchableMethods, ...args: any[]): ICancelableEventArgs
+    emitAfter(propKey: PatchableMethods, originalMethodResult: any): void
 }
 
 @injectable()
@@ -20,7 +21,7 @@ export class QuestEventEmitter {
 
     ) { }
 
-    emitBefore(propKey: keyof QuestController, ...args: any[]): ICancelableEventArgs {
+    emitBefore(propKey: PatchableMethods, ...args: any[]): ICancelableEventArgs {
         this.logger.info(`emitBefore called for method ${propKey.toString()}. Attempting to alert the event listeners`);
 
         const cancelableEventArgs: ICancelableEventArgs = {
@@ -32,7 +33,7 @@ export class QuestEventEmitter {
     }
 
 
-    emitAfter(propKey: keyof QuestController, originalMethodResult: any): void {
+    emitAfter(propKey: PatchableMethods, originalMethodResult: any): void {
         this.logger.info(`emitAfter called for method ${propKey.toString()}.`);
 
         this.postEmitRegistry.notifyPostEventListeners(propKey, originalMethodResult)

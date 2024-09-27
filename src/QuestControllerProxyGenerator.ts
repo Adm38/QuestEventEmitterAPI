@@ -1,11 +1,10 @@
 import { inject, singleton } from "tsyringe";
-import { depr_IQuestControllerProxyHandler, IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
-import { QuestController } from "@spt/controllers/QuestController";
+import { IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
 import { IQuestEventEmitter } from "./QuestEventEmitter";
-import { ICancelableEventArgs } from "./ICancelableEventArgs";
-import { ILogger } from "@spt/models/spt/utils/ILogger";
 import { QuestEventEmitterAPILogger } from "./QuestEventEmitterAPILogger";
 import { LogTextColor } from "@spt/models/spt/logging/LogTextColor";
+import { castToEnum } from "./utils";
+import { PatchableMethods } from "./PatchableMethodsEnum";
 
 
 export interface IQCProxyHandlerGenerator {
@@ -31,7 +30,16 @@ export class QCProxyHandlerGenerator implements IQCProxyHandlerGenerator {
                 // allow them to cancel the originalMethod if they want to
                 this.logger.info(`Proxy handler for ${target.name} was called.`)
 
-                const shouldCancel = this.questEventEmitter.emitBefore(target.name, ...argumentsList);
+                // cast the method name to a PatchableMethods enum. This is 
+                // needed to pass the method name to other listeners
+                const patchableEnumValue = castToEnum(PatchableMethods, target.name)
+                if (!patchableEnumValue) {
+                    this.logger.warning(`Appears ${target.name} was unable to be cast to a PatchableMethods enum value. Calling original method and returning.`)
+                    target.call(thisArg, ...argumentsList)
+                    return
+                }
+
+                const shouldCancel = this.questEventEmitter.emitBefore(patchableEnumValue, ...argumentsList);
 
                 if (shouldCancel.cancel) {
                     this.logger.log(`Not calling method ${target.name} as a preEmit listener requested we cancel.`, LogTextColor.WHITE)
@@ -41,7 +49,7 @@ export class QCProxyHandlerGenerator implements IQCProxyHandlerGenerator {
                 // need to change my naming here
                 const result = target.call(thisArg, ...argumentsList)
 
-                this.questEventEmitter.emitAfter(target.name, result);
+                this.questEventEmitter.emitAfter(patchableEnumValue, result);
             }
         }
     }

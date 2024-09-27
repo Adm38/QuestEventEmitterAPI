@@ -5,6 +5,7 @@ import { depr_IQuestControllerProxyHandler, IQuestControllerProxyHandler } from 
 import { LogTextColor } from "@spt/models/spt/logging/LogTextColor";
 import { IQCProxyHandlerGenerator } from "./QuestControllerProxyGenerator";
 import { json } from "stream/consumers";
+import { Config } from "./config";
 
 export interface IQuestControllerPatcher {
     patchQuestController(): QuestController
@@ -16,8 +17,8 @@ export class QuestControllerPatcher {
     constructor(
         @inject("QuestEventEmitterAPILogger") private logger: ILogger,
         @inject("QuestController") private originalQuestController: QuestController,
-        @inject("QCProxyHandlerGenerator") private proxyHandlerGenerator: IQCProxyHandlerGenerator
-
+        @inject("QCProxyHandlerGenerator") private proxyHandlerGenerator: IQCProxyHandlerGenerator,
+        @inject("QuestEventEmitterAPIConfig") private modConfig: Config
     ) { }
 
     /**
@@ -100,7 +101,7 @@ export class QuestControllerPatcher {
         });
 
         // apply our handler wrapper to each method on QuestController
-        const methodWhitelist = ["acceptQuest", "completeQuest", "failQuest", "failQuests"]
+        const methodWhitelist = this.modConfig.methodsToPatch;
         qcMethods.forEach((qcMethod) => {
             if (!(methodWhitelist.includes(qcMethod))) {
                 //TODO: Remove this - only for debugging purposes

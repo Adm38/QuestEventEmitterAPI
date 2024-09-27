@@ -14,6 +14,7 @@ import { IPostQuestListenerBinding, IPreQuestListenerBinding } from "./IQuestLis
 import { IQCProxyHandlerGenerator, QCProxyHandlerGenerator } from "./QuestControllerProxyGenerator";
 import { QuestEventEmitterAPILogger } from "./QuestEventEmitterAPILogger";
 import { QuestController } from "@spt/controllers/QuestController";
+import { PatchableMethods } from "./PatchableMethodsEnum";
 
 
 export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
@@ -57,9 +58,6 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
 
         const logger = container.resolve<ILogger>("QuestEventEmitterAPILogger")
         logger.info(`ran successfully? ${wasSuccess}`)
-
-
-
     }
 
     postSptLoad(container: DependencyContainer): void {
@@ -74,8 +72,7 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
         const postEventRegistry = container.resolve<IPostQuestListenerRegistry>("PostQuestListenerRegistry")
 
         // Accept Quests Callback
-        this.createTestPreAcceptQuestCallback(preEventRegistry, logger)
-        this.createTestPostAcceptQuestCallback(postEventRegistry, logger)
+        this.createTestAcceptQuestCallback(preEventRegistry, postEventRegistry, logger)
 
         // Complete Quests Callbacks
         this.createTestPreCompleteQuestCallback(preEventRegistry, logger)
@@ -83,10 +80,13 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
 
         // Fail Quest Callback
         this.createTestFailCallbacks(preEventRegistry, postEventRegistry, logger)
+
+        // Fails Quest Callback (notice the 's')
+        this.createTestFailsCallbacks(preEventRegistry, postEventRegistry, logger)
     }
 
     // REGION: TEST CALLBACKS
-    private createTestPreCallback(preEventRegistry: IPreQuestListenerRegistry, methodName: keyof QuestController, successMsg: string, logger?: ILogger): void {
+    private createTestPreCallback(preEventRegistry: IPreQuestListenerRegistry, methodName: PatchableMethods, successMsg: string, logger?: ILogger): void {
         // Create a test event that gets called before I accept a task
         const preEventCallback: IPreQuestEventListener = {
             // define the callback function
@@ -106,7 +106,7 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
         }
         preEventRegistry.registerPreListener(binding)
     }
-    private createTestPostCallback(postEventRegistry: IPostQuestListenerRegistry, methodName: keyof QuestController, successMsg: string, logger?: ILogger): void {
+    private createTestPostCallback(postEventRegistry: IPostQuestListenerRegistry, methodName: PatchableMethods, successMsg: string, logger?: ILogger): void {
         // create a test event that gets called after I finish accepting a task
         const postEventCallback: IPostQuestEventListener = {
             on: function (originalMethodResult: any): void {
@@ -126,62 +126,32 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
     }
 
     // REGION: acceptQuest Callbacks
-    private createTestPreAcceptQuestCallback(preEventRegistry: IPreQuestListenerRegistry, logger?: ILogger): void {
+    private createTestAcceptQuestCallback(preEventRegistry: IPreQuestListenerRegistry, postEventRegistry: IPostQuestListenerRegistry, logger?: ILogger): void {
         // Create a test event that gets called before I accept a task
-        this.createTestPreCallback(preEventRegistry, "acceptQuest", "Nice job accepting that task, champ!", logger)
-    }
-
-    private createTestPostAcceptQuestCallback(postEventRegistry: IPostQuestListenerRegistry, logger?: ILogger): void {
-        // create a test event that gets called after I finish accepting a task
-        const acceptCallback: IPostQuestEventListener = {
-            on: function (originalMethodResult: any): void {
-                if (logger) {
-                    logger.success("Congrats on successfully accepting that quest. You're so impressive. Not many people could have accepted the task like you just did.")
-                }
-            }
-        }
-
-        const binding: IPostQuestListenerBinding = {
-            questMethod: "acceptQuest",
-            eventListenerCallback: acceptCallback
-        }
-
-        postEventRegistry.registerPostListener(binding)
+        this.createTestPreCallback(preEventRegistry, PatchableMethods.ACCEPT_QUEST, "Nice job accepting that task, champ!", logger)
+        this.createTestPostCallback(postEventRegistry, PatchableMethods.ACCEPT_QUEST, "mod.js received post-accept quest callback", logger)
     }
 
     // REGION: TEST CALLBACKS (completeQuest)
     private createTestPreCompleteQuestCallback(preEventRegistry: IPreQuestListenerRegistry, logger?: ILogger): void {
         // Create a test event that gets called before I accept a task
-        this.createTestPreCallback(preEventRegistry, "completeQuest", "Wow! I think you just completed a task. Keep it up champ.", logger)
+        this.createTestPreCallback(preEventRegistry, PatchableMethods.COMPLETE_QUEST, "Wow! I think you just completed a task. Keep it up champ.", logger)
     }
 
     private createTestPostCompleteQuestCallback(postEventRegistry: IPostQuestListenerRegistry, logger?: ILogger): void {
         // create a test event that gets called after I finish accepting a task
-        const completeQuestCallback: IPostQuestEventListener = {
-            on: function (originalMethodResult: any): void {
-                if (logger) {
-                    logger.success("Congrats on completing that quest!")
-                }
-            }
-        }
-
-        const binding: IPostQuestListenerBinding = {
-            questMethod: "completeQuest",
-            eventListenerCallback: completeQuestCallback
-        }
-
-        postEventRegistry.registerPostListener(binding)
+        this.createTestPostCallback(postEventRegistry, PatchableMethods.COMPLETE_QUEST, "mod.js received post-method callback", logger)
     }
 
     // REGION: failQuest callbacks
     private createTestFailCallbacks(preEventRegistry: IPreQuestListenerRegistry, postEventRegistry: IPostQuestListenerRegistry, logger?: ILogger) {
-        this.createTestPreCallback(preEventRegistry, "failQuest", "Pre-event: Failed a quest successfully", logger)
-        this.createTestPostCallback(postEventRegistry, "failQuest", "Post-event: Failed a quest successfully.", logger)
+        this.createTestPreCallback(preEventRegistry, PatchableMethods.FAIL_QUEST, "Pre-event: Failed a quest successfully", logger)
+        this.createTestPostCallback(postEventRegistry, PatchableMethods.FAIL_QUEST, "Post-event: Failed a quest successfully.", logger)
     }
 
     private createTestFailsCallbacks(preEventRegistry: IPreQuestListenerRegistry, postEventRegistry: IPostQuestListenerRegistry, logger?: ILogger) {
-        this.createTestPreCallback(preEventRegistry, "failQuest", "Pre-event: Failed a quest successfully", logger)
-        this.createTestPostCallback(postEventRegistry, "failQuest", "Post-event: Failed a quest successfully.", logger)
+        this.createTestPreCallback(preEventRegistry, PatchableMethods.FAIL_QUESTS, "Pre-event: Failed multiple quests successfully", logger)
+        this.createTestPostCallback(postEventRegistry, PatchableMethods.FAIL_QUESTS, "Post-event: Failed multiple quests successfully.", logger)
     }
 
 

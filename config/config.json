@@ -1,5 +1,13 @@
 {
     "enabled": true,
     "debug": false,
-    "loggerPrefix": "[QuestEventEmitterAPI] "
+    "loggerPrefix": "[QuestEventEmitterAPI] ",
+    "methodsToPatch": [
+        "acceptQuest",
+        "completeQuest",
+        "failQuest",
+        "failQuests",
+        "acceptRepeatableQuest",
+        "getQuestsFailedByCompletingQuest"
+    ]
 }

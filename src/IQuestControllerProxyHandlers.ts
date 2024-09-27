@@ -1,7 +1,8 @@
 import { QuestController } from "@spt/controllers/QuestController";
+import { PatchableMethods } from "./PatchableMethodsEnum";
 
 export interface depr_IQuestControllerProxyHandler {
-    get(target: QuestController, propKey: keyof QuestController, receiver: any): any
+    get(target: QuestController, propKey: PatchableMethods, receiver: any): any
 }
 
 export interface IQuestControllerProxyHandler {

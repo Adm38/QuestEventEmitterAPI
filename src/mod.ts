@@ -19,13 +19,8 @@ import { PatchableMethods } from "./PatchableMethodsEnum";
 
 export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
     // Set out mod name so only this class can modify
-    private static _modName: string = "ScrimpyDimpy-QuestNotifierMod";
     private static packageJSON: PackageJson;
     private static container: DependencyContainer;
-
-    public static get modName(): string {
-        return QuestNotifierMod._modName;
-    }
 
     private modConfig: Config;
 
@@ -48,16 +43,26 @@ export class QuestNotifierMod implements IPreSptLoadMod, IPostSptLoadMod {
         container.register<IQuestEventEmitter>("QuestEventEmitter", QuestEventEmitter, { lifecycle: Lifecycle.Singleton })
         container.register<IPreQuestListenerRegistry>("PreQuestListenerRegistry", QuestListenerRegistry, { lifecycle: Lifecycle.Singleton })
         container.register<IPostQuestListenerRegistry>("PostQuestListenerRegistry", QuestListenerRegistry, { lifecycle: Lifecycle.Singleton })
-        container.register<QuestNotifierMod>(QuestNotifierMod._modName, QuestNotifierMod, { lifecycle: Lifecycle.Singleton })
+        container.register<QuestNotifierMod>(QuestNotifierMod.packageJSON.name, QuestNotifierMod, { lifecycle: Lifecycle.Singleton })
+
+        const logger = container.resolve<ILogger>("QuestEventEmitterAPILogger")
 
         // run our patching
         const questControllerPatcher = container.resolve(QuestControllerPatcher)
         const patchedController = questControllerPatcher.patchQuestController()
+        const successfulPatch = questControllerPatcher.verifyPatch()
 
-        const wasSuccess = questControllerPatcher.rerouteQuestController(container, patchedController)
+        if (!successfulPatch.success) {
+            logger.error(`QuestController Patcher did not successfully patch the following functions: ${JSON.stringify(successfulPatch.unpatchedMethods, null, 4)}`)
+            logger.error(" exiting without rerouting container calls.")
+            return
+        }
 
-        const logger = container.resolve<ILogger>("QuestEventEmitterAPILogger")
-        logger.info(`ran successfully? ${wasSuccess}`)
+        logger.success("Successfully patched QuestController.")
+
+        questControllerPatcher.rerouteQuestController(container, patchedController)
+
+        logger.info(`${QuestNotifierMod.packageJSON.name} loaded.`)
     }
 
     postSptLoad(container: DependencyContainer): void {

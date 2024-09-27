@@ -16,7 +16,7 @@ export interface IQuestControllerPatcher {
 export class QuestControllerPatcher {
     constructor(
         @inject("QuestEventEmitterAPILogger") private logger: ILogger,
-        @inject("QuestController") private originalQuestController: QuestController,
+        @inject("QuestController") private questController: QuestController,
         @inject("QCProxyHandlerGenerator") private proxyHandlerGenerator: IQCProxyHandlerGenerator,
         @inject("QuestEventEmitterAPIConfig") private modConfig: Config
     ) { }
@@ -27,7 +27,7 @@ export class QuestControllerPatcher {
     public patchQuestController(): QuestController {
         // patch each individual method on the Quest Controller
         this.patchEachQCMethod()
-        return this.originalQuestController
+        return this.questController
     }
 
     /**
@@ -43,44 +43,11 @@ export class QuestControllerPatcher {
      * @returns {boolean} - Returns `true` if the rerouting was successful (i.e., the proxy successfully replaced 
      *                      the original QuestController), otherwise `false`.
      */
-    public rerouteQuestController(container: DependencyContainer, proxyQuestController: QuestController): boolean {
+    public rerouteQuestController(container: DependencyContainer, proxyQuestController: QuestController): void {
         // override following logic described here:
         // https://dev.sp-tarkov.com/chomp/ModExamples/src/branch/master/TypeScript/12ClassExtensionOverride/src/mod.ts
         container.register<QuestController>("QuestController", { useValue: proxyQuestController });
 
-        // Check if the service locator is routing to our patched 
-        // QuestController Proxy object
-        const newlyRoutedQuestController = container.resolve<QuestController>("QuestController")
-        const wasSuccess = newlyRoutedQuestController.acceptQuest != this.originalQuestController.acceptQuest
-
-        if (wasSuccess) {
-            this.logger.logWithColor("Successfully patched QuestController", LogTextColor.YELLOW)
-            return wasSuccess
-        }
-        this.logger.error("Did not successfully patch QuestController");
-        return wasSuccess
-    }
-
-    /**
-     * Creates a proxy for the QuestController class that wraps all method calls with event emissions.
-     * 
-     * This method resolves the original QuestController from the container, and returns a proxy object 
-     * which uses a provided or default handler to intercept and wrap method calls. The handler is responsible 
-     * for emitting events before and after the method execution.
-     * 
-     * @param _handler - An optional custom handler implementing the IQuestControllerProxyHandler interface. 
-     *                   If not provided, a default handler will be used.
-     * @returns {QuestController} - A proxy object that wraps the QuestController instance, enabling interception 
-     *                              of method calls.
-     */
-    public createQuestControllerProxy(): QuestController {
-        // returns a proxy object for the QuestController class.
-        // start with an empty handler because we want to apply proxies at the function level. 
-        // However, we don't want to modify the original QuestController when we start overwriting functions
-
-        this.logger.warning("createQuestControllerProxy is being depreciated. This should not be called.")
-
-        return new Proxy(this.originalQuestController, {})
     }
 
     patchEachQCMethod(_handler?: IQuestControllerProxyHandler): void {
@@ -95,7 +62,7 @@ export class QuestControllerPatcher {
         if (typeof _handler !== "undefined") handler = this.proxyHandlerGenerator.getEmitterProxyHandler();
 
         // get each property on QuestController, then narrow to just methods
-        const qcProperties = Object.getOwnPropertyNames(Object.getPrototypeOf(this.originalQuestController))
+        const qcProperties = Object.getOwnPropertyNames(Object.getPrototypeOf(this.questController))
         const qcMethods = qcProperties.filter((prop) => {
             return !(prop in methodNameBlacklist)
         });
@@ -104,20 +71,52 @@ export class QuestControllerPatcher {
         const methodWhitelist = this.modConfig.methodsToPatch;
         qcMethods.forEach((qcMethod) => {
             if (!(methodWhitelist.includes(qcMethod))) {
-                //TODO: Remove this - only for debugging purposes
+                if (this.modConfig.debug) this.logger.warning(`Patcher: Skipped patching ${qcMethod}`);
+                return;
+            }
 
-                this.logger.warning(`Patcher: Skipped patching ${qcMethod}`);
+            const originalMethod = Reflect.get(this.questController, qcMethod)
+            const patchedMethod = new Proxy(originalMethod, handler)
+
+            // set a property `wasPatched` on our wrapped method to check for in verifyPatch
+            Reflect.set(patchedMethod, "wasPatched", true)
+
+            // overwrite original method on the quest controller
+            Reflect.set(this.questController, qcMethod, patchedMethod)
+            this.logger.success(`Patcher: patched ${qcMethod}`)
+        });
+
+        return;
+    }
+
+    public verifyPatch(): { success: boolean, unpatchedMethods: string[] } {
+        // for each method we were supposed to patch (defined in config), 
+        // ensure that the "wasPatched" property exists on that method
+
+        const unpatchedMethods = []
+        let wasSuccess = true
+
+        const methodList = this.modConfig.methodsToPatch
+
+        methodList.forEach((methodName) => {
+            const actualMethod = Reflect.get(this.questController, methodName)
+            if (!actualMethod) {
+                wasSuccess = false
+                unpatchedMethods.push(methodName)
                 return
             }
 
-            const originalMethod = Reflect.get(this.originalQuestController, qcMethod)
-            const patchedMethod = new Proxy(originalMethod, handler)
-            Reflect.set(this.originalQuestController, qcMethod, patchedMethod)
-
-            this.logger.info(`Patcher: patched ${qcMethod}`)
+            const wasPatched = Reflect.get(actualMethod, "wasPatched");
+            if (!wasPatched) {
+                wasSuccess = false
+                unpatchedMethods.push(methodName)
+            }
         });
 
-        return
+        return {
+            success: wasSuccess,
+            unpatchedMethods: unpatchedMethods
+        }
     }
 
 }

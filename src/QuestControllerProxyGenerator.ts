@@ -5,6 +5,7 @@ import { QuestEventEmitterAPILogger } from "./QuestEventEmitterAPILogger";
 import { LogTextColor } from "@spt/models/spt/logging/LogTextColor";
 import { castToEnum } from "./utils";
 import { PatchableMethods } from "./PatchableMethodsEnum";
+import { Config } from "./config";
 
 
 export interface IQCProxyHandlerGenerator {
@@ -15,7 +16,8 @@ export interface IQCProxyHandlerGenerator {
 export class QCProxyHandlerGenerator implements IQCProxyHandlerGenerator {
     constructor(
         @inject("QuestEventEmitterAPILogger") private logger: QuestEventEmitterAPILogger,
-        @inject("QuestEventEmitter") private questEventEmitter: IQuestEventEmitter
+        @inject("QuestEventEmitter") private questEventEmitter: IQuestEventEmitter,
+        @inject("QuestEventEmitterAPIConfig") private modConfig: Config
 
     ) { }
 
@@ -25,16 +27,18 @@ export class QCProxyHandlerGenerator implements IQCProxyHandlerGenerator {
         return {
             apply: (target: any, thisArg: any, argumentsList: any[]): any => {
                 // target is the method that is being invoked
+                const debugging = this.modConfig.debug;
 
-                // notify event emitter that we are calling the originalMethod soon
-                // allow them to cancel the originalMethod if they want to
-                this.logger.info(`Proxy handler for ${target.name} was called.`)
+                if (debugging) this.logger.info(`Proxy handler for ${target.name} was called.`)
 
-                // cast the method name to a PatchableMethods enum. This is 
-                // needed to pass the method name to other listeners
+
+                // convert the target (method)'s name back into the PatchableMethods enum
                 const patchableEnumValue = castToEnum(PatchableMethods, target.name)
                 if (!patchableEnumValue) {
-                    this.logger.warning(`Appears ${target.name} was unable to be cast to a PatchableMethods enum value. Calling original method and returning.`)
+                    if (debugging) {
+                        this.logger.warning(`Appears ${target.name} was unable to be cast to a PatchableMethods enum value. Calling original method and returning.`)
+                    }
+
                     target.call(thisArg, ...argumentsList)
                     return
                 }
@@ -42,7 +46,10 @@ export class QCProxyHandlerGenerator implements IQCProxyHandlerGenerator {
                 const shouldCancel = this.questEventEmitter.emitBefore(patchableEnumValue, ...argumentsList);
 
                 if (shouldCancel.cancel) {
-                    this.logger.log(`Not calling method ${target.name} as a preEmit listener requested we cancel.`, LogTextColor.WHITE)
+                    if (debugging) {
+                        this.logger.log(`Not calling method ${target.name} as a preEmit listener requested we cancel.`, LogTextColor.WHITE)
+                    }
+                    return
                 }
 
                 // if we did not need to cancel, we should call the original method with the provided arguments 
@@ -54,51 +61,5 @@ export class QCProxyHandlerGenerator implements IQCProxyHandlerGenerator {
         }
     }
 
-    /*
-    public depr_getEmitterProxyHandler(): depr_IQuestControllerProxyHandler {
-
-        //TODO: Genius Plan
-        /* for property in QuestController
-         1. get original method through Reflection.get 
-         2. we should build a new `apply` trap to each method that emits and calls the **original** method
-         3. emit again
-         4. once done building trap, we should figure out how to modify a proxy object or something. This part I don't know entirely but the idea is to overwrite each function on preferably a proxy
-        
-
-        return {
-            // override the `get` method. This is called when accessing any properties or functions on the proxy obj
-            get: (target: QuestController, propKey: keyof QuestController, receiver: any): any => {
-                const originalMethod = target[propKey];
-
-                // Only wrap if it's a method
-                if (typeof originalMethod === "function") {
-                    return (...args: any[]) => {
-                        // Notify the emitter that we're calling the original method soon
-                        const eventArgsBefore: ICancelableEventArgs = this.questEventEmitter.emitBefore(propKey, args)
-
-                        // Check if any of the listeners requested we cancel the original method call
-                        if (eventArgsBefore.cancel) {
-                            this.logger.info(`Cancelling original method call for ${propKey}. An event listener indicated we should cancel`);
-                            return
-                        }
-
-                        // Invoke the original QuestController method
-                        const result = originalMethod.apply(target, args)
-
-                        // Emit event after the method call
-                        this.questEventEmitter.emitAfter(propKey, result)
-                        return result
-                    }
-                }
-
-                // If propKey is not a function, return the original property
-                return originalMethod
-            }
-        }
-
-        
-
-    }
-        */
 }
 

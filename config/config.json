@@ -3,11 +3,22 @@
     "debug": false,
     "loggerPrefix": "[QuestEventEmitterAPI] ",
     "methodsToPatch": [
+        "playerLevelFulfillsQuestRequirement",
         "acceptQuest",
-        "completeQuest",
-        "failQuest",
-        "failQuests",
         "acceptRepeatableQuest",
-        "getQuestsFailedByCompletingQuest"
+        "createAcceptedQuestClientResponse",
+        "getRepeatableQuestFromProfile",
+        "completeQuest",
+        "getQuestsFailedByCompletingQuest",
+        "removeQuestFromScavProfile",
+        "getQuestsWithDifferentStatuses",
+        "sendSuccessDialogMessageOnQuestComplete",
+        "addTimeLockedQuestsToProfile",
+        "failQuests",
+        "handoverQuest",
+        "showRepeatableQuestInvalidConditionError",
+        "showQuestItemHandoverMatchError",
+        "updateProfileTaskConditionCounterValue",
+        "failQuest"
     ]
 }

@@ -19,8 +19,12 @@
 "failQuest"]
 
 # Working Patches
-acceptQuest
-completeQuest
+"acceptQuest",
+        "completeQuest",
+        "failQuest",
+        "failQuests",
+        "acceptRepeatableQuest",
+        "getQuestsFailedByCompletingQuest"
 
 
 # Not Working Patches

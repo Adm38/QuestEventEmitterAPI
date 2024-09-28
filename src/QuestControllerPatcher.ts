@@ -1,10 +1,9 @@
+/* eslint-disable @typescript-eslint/brace-style */
 import { DependencyContainer, inject, injectable } from "tsyringe";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
 import { QuestController } from "@spt/controllers/QuestController";
-import { depr_IQuestControllerProxyHandler, IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
-import { LogTextColor } from "@spt/models/spt/logging/LogTextColor";
+import { IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
 import { IQCProxyHandlerGenerator } from "./QuestControllerProxyGenerator";
-import { json } from "stream/consumers";
 import { Config } from "./config";
 
 export interface IQuestControllerPatcher {

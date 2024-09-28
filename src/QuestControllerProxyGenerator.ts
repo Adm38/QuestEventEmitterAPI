@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/brace-style */
 import { inject, singleton } from "tsyringe";
 import { IQuestControllerProxyHandler } from "./IQuestControllerProxyHandlers";
 import { IQuestEventEmitter } from "./QuestEventEmitter";

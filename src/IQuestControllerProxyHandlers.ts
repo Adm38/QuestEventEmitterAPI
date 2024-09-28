@@ -1,10 +1,4 @@
-import { QuestController } from "@spt/controllers/QuestController";
-import { PatchableMethods } from "./PatchableMethodsEnum";
-
-export interface depr_IQuestControllerProxyHandler {
-    get(target: QuestController, propKey: PatchableMethods, receiver: any): any
-}
-
+/* eslint-disable @typescript-eslint/brace-style */
 export interface IQuestControllerProxyHandler {
     apply(target: any, thisArg: any, argumentsList: any[]): any
 }

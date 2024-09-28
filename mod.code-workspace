@@ -9,5 +9,12 @@
             "dbaeumer.vscode-eslint",
             "refringe.spt-id-highlighter"
         ]
+    },
+    "settings": {
+        "cSpell.words": [
+            "dbaeumer",
+            "refringe",
+            "tsyringe"
+        ]
     }
 }
